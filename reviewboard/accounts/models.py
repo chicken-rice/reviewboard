@@ -167,6 +167,16 @@ class Profile(models.Model):
         return self.user.username
 
 
+class Trophy(models.Model):
+    """Trophy model."""
+    trophy_type = models.CharField(max_length=16)
+    timestamp = models.DateTimeField(_("timestamp"), default=timezone.now)
+    review_request = models.ForeignKey(ReviewRequest, related_name='trophies')
+    user = models.ForeignKey(User, related_name='trophies')
+    local_site = models.ForeignKey(LocalSite, null=True, blank=True,
+                                   related_name='trophies')
+
+
 class LocalSiteProfile(models.Model):
     """User profile information specific to a LocalSite."""
     user = models.ForeignKey(User, related_name='site_profiles')
