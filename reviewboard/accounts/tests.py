@@ -1,10 +1,12 @@
+import copy
+
 from django.contrib.auth.models import User
 from djblets.testing.decorators import add_fixtures
 from djblets.testing.testcases import TestCase
 
-from reviewboard.accounts.models import LocalSiteProfile
+from reviewboard.diffviewer.models import DiffSetHistory
+from reviewboard.accounts.models import LocalSiteProfile, Trophy
 from reviewboard.reviews.models import ReviewRequest
-
 
 class ProfileTests(TestCase):
     """Testing the Profile model."""
@@ -54,3 +56,53 @@ class ProfileTests(TestCase):
         self.assertFalse(review_request in
                          profile1.starred_review_requests.all())
         self.assertEqual(site_profile.starred_public_request_count, 0)
+
+
+class TrophyTests(TestCase):
+    """Testing the Trophy model."""
+    fixtures = ['test_users', 'test_reviewrequests']
+
+    def test_is_trophy_entry_with_milestone(self):
+        """Testing entry with milestone."""
+        user1 = User.objects.get(pk=1)
+        diff_his1 = DiffSetHistory.objects.get(pk=1)
+        review_request1 = ReviewRequest(id=1000, submitter=user1,
+                                        diffset_history=diff_his1)
+        review_request1.save()
+        Trophy.objects.compute_trophies(review_request1, user1)
+
+        trophy_stored = Trophy.objects.get(id=1)
+        self.assertEqual(trophy_stored.user, user1)
+        self.assertEqual(trophy_stored.review_request, review_request1)
+        self.assertEqual(trophy_stored.trophy_type, 'milestone')
+
+    def test_is_trophy_entry_with_pailindrome(self):
+        """Testing entry with palindrome."""
+        user1 = User.objects.get(pk=1)
+        diff_his1 = DiffSetHistory.objects.get(pk=1)
+        review_request1 = ReviewRequest(id=1221, submitter=user1,
+                                        diffset_history=diff_his1)
+        review_request1.save()
+        Trophy.objects.compute_trophies(review_request1, user1)
+
+        trophy_stored = Trophy.objects.get(id=1)
+        self.assertEqual(trophy_stored.user, user1)
+        self.assertEqual(trophy_stored.review_request, review_request1)
+        self.assertEqual(trophy_stored.trophy_type, 'palindrome')
+
+    def test_is_trophy_associated_with_user(self):
+        """Testing trophies are associated with user."""
+        user1 = User.objects.get(pk=1)
+        diff_his1 = DiffSetHistory.objects.get(pk=1)
+        review_request1 = ReviewRequest(id=1000, submitter=user1,
+                                        diffset_history=diff_his1)
+        review_request2 = ReviewRequest(id=1221, submitter=user1,
+                                        diffset_history=diff_his1)
+
+        Trophy.objects.compute_trophies(review_request1, user1)
+        Trophy.objects.compute_trophies(review_request2, user1)
+
+        user_trophies = Trophy.objects.filter(user=user1)
+        self.assertEqual(len(user_trophies), 2)
+        self.assertEqual(user_trophies[0].trophy_type, 'milestone')
+        self.assertEqual(user_trophies[1].trophy_type, 'palindrome')

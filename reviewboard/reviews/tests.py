@@ -1,4 +1,5 @@
 from datetime import timedelta
+
 import logging
 import os
 
@@ -11,7 +12,8 @@ from django.test import TestCase
 
 from djblets.siteconfig.models import SiteConfiguration
 
-from reviewboard.accounts.models import Profile, LocalSiteProfile
+from reviewboard.accounts.models import Profile, LocalSiteProfile, \
+                                        Trophy
 from reviewboard.attachments.models import FileAttachment
 from reviewboard.reviews.forms import DefaultReviewerForm, GroupForm
 from reviewboard.reviews.models import Comment, \
@@ -24,6 +26,7 @@ from reviewboard.reviews.models import Comment, \
 from reviewboard.scmtools.models import Repository, Tool
 from reviewboard.site.models import LocalSite
 from reviewboard.site.urlresolvers import local_site_reverse
+from reviewboard.diffviewer.models import DiffSetHistory
 
 
 class DbQueryTests(TestCase):
@@ -1137,31 +1140,39 @@ class GroupTests(TestCase):
         self.assertFalse(form.is_valid())
 
 
-class IfNeatNumberTagTests(TestCase):
+class IfTrophyTagTests(TestCase):
+    fixtures = ['test_users', 'test_reviewrequests']
     def testMilestones(self):
-        """Testing the ifneatnumber tag with milestone numbers"""
-        self.assertNeatNumberResult(100, "")
-        self.assertNeatNumberResult(1000, "milestone")
-        self.assertNeatNumberResult(10000, "milestone")
-        self.assertNeatNumberResult(20000, "milestone")
-        self.assertNeatNumberResult(20001, "")
+        """Testing the iftrophy tag with milestone numbers"""
+        self.assertTrophyResult(100, "")
+        self.assertTrophyResult(1000, "milestone")
+        self.assertTrophyResult(10000, "milestone")
+        self.assertTrophyResult(20000, "milestone")
+        self.assertTrophyResult(20001, "")
 
     def testPalindrome(self):
-        """Testing the ifneatnumber tag with palindrome numbers"""
-        self.assertNeatNumberResult(101, "")
-        self.assertNeatNumberResult(1001, "palindrome")
-        self.assertNeatNumberResult(12321, "palindrome")
-        self.assertNeatNumberResult(20902, "palindrome")
-        self.assertNeatNumberResult(912219, "palindrome")
-        self.assertNeatNumberResult(912218, "")
+        """Testing the iftrophy tag with palindrome numbers"""
+        self.assertTrophyResult(101, "")
+        self.assertTrophyResult(1001, "palindrome")
+        self.assertTrophyResult(12321, "palindrome")
+        self.assertTrophyResult(20902, "palindrome")
+        self.assertTrophyResult(912219, "palindrome")
+        self.assertTrophyResult(912218, "")
 
-    def assertNeatNumberResult(self, rid, expected):
+    def assertTrophyResult(self, rid, expected):
+        user1 = User.objects.get(pk=1)
+        diff_his1 = DiffSetHistory.objects.get(pk=1)
+        review_request1 = ReviewRequest(id=rid, submitter=user1,
+                                        diffset_history=diff_his1)
+        review_request1.save()
+        Trophy.objects.compute_trophies(review_request1, user1)
+
         t = Template(
             "{% load reviewtags %}"
-            "{% ifneatnumber " + str(rid) + " %}"
+            "{% iftrophy " + str(rid) + " %}"
             "{%  if milestone %}milestone{% else %}"
             "{%  if palindrome %}palindrome{% endif %}{% endif %}"
-            "{% endifneatnumber %}")
+            "{% endiftrophy %}")
 
         self.assertEqual(t.render(Context({})), expected)
 

@@ -11,7 +11,7 @@ from django.utils.translation import ugettext_lazy as _
 from djblets.util.decorators import basictag, blocktag
 from djblets.util.humanize import humanize_list
 
-from reviewboard.accounts.models import Profile
+from reviewboard.accounts.models import Profile, Trophy
 from reviewboard.diffviewer.models import DiffSet
 from reviewboard.reviews.models import BaseComment, Group, \
                                        ReviewRequest, ScreenshotComment, \
@@ -23,7 +23,7 @@ register = template.Library()
 
 @register.tag
 @blocktag
-def ifneatnumber(context, nodelist, rid):
+def iftrophy(context, nodelist, rid):
     """
     Returns whether or not the specified number is a "neat" number.
     This is a number with a special property, such as being a
@@ -32,30 +32,17 @@ def ifneatnumber(context, nodelist, rid):
     If the number is a neat number, the contained content is rendered,
     and two variables, ``milestone`` and ``palindrome`` are defined.
     """
-    if rid == None or rid < 1000:
-        return ""
-
-    ridstr = str(rid)
-    interesting = False
-
     context.push()
     context['milestone'] = False
     context['palindrome'] = False
 
-    if rid >= 1000:
-        trailing = ridstr[1:]
-        if trailing == "0" * len(trailing):
-            context['milestone'] = True
-            interesting = True
+    trophy = Trophy.objects.filter(review_request=rid)
 
-    if not interesting:
-        if ridstr == ''.join(reversed(ridstr)):
-            context['palindrome'] = True
-            interesting = True
-
-    if not interesting:
+    if len(trophy) == 0:
         context.pop()
         return ""
+
+    context[trophy[0].trophy_type] = True
 
     s = nodelist.render(context)
     context.pop()

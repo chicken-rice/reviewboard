@@ -8,6 +8,7 @@ from djblets.util.forms import TIMEZONE_CHOICES
 
 from reviewboard.reviews.models import Group, ReviewRequest
 from reviewboard.site.models import LocalSite
+from reviewboard.accounts.managers import TrophyManager
 
 
 class ReviewRequestVisit(models.Model):
@@ -175,6 +176,10 @@ class Trophy(models.Model):
     user = models.ForeignKey(User, related_name='trophies')
     local_site = models.ForeignKey(LocalSite, null=True, blank=True,
                                    related_name='trophies')
+
+    #Set this up with a TrophyManager to compute trophies
+
+    objects = TrophyManager()
 
 
 class LocalSiteProfile(models.Model):
