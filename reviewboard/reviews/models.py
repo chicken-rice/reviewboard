@@ -908,6 +908,8 @@ class ReviewRequest(BaseReviewRequestDetails):
                                       review_request=self,
                                       changedesc=changes)
 
+        Trophy.objects.compute_trophies(self, user)
+
     def _update_counts(self):
         from reviewboard.accounts.models import Profile, LocalSiteProfile
 
