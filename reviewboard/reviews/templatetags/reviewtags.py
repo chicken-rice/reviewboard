@@ -50,6 +50,35 @@ def iftrophy(context, nodelist, rid):
 
 
 @register.tag
+@blocktag
+def iftrophy(context, nodelist, rid):
+    """
+    Returns whether or not the specified number is a "neat" number.
+    This is a number with a special property, such as being a
+    palindrome or having trailing zeroes.
+
+    If the number is a neat number, the contained content is rendered,
+    and two variables, ``milestone`` and ``palindrome`` are defined.
+    """
+    context.push()
+    context['milestone'] = False
+    context['palindrome'] = False
+
+    trophy = Trophy.objects.filter(review_request=
+                                   ReviewRequest.objects.get(id=rid))
+
+    if len(trophy) == 0:
+        context.pop()
+        return ""
+
+    context[trophy[0].trophy_type] = True
+
+    s = nodelist.render(context)
+    context.pop()
+    return s
+
+
+@register.tag
 @basictag(takes_context=True)
 def commentcounts(context, filediff, interfilediff=None):
     """

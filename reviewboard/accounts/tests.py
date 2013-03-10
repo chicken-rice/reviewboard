@@ -76,7 +76,7 @@ class TrophyTests(TestCase):
         self.assertEqual(trophy_stored.review_request, review_request1)
         self.assertEqual(trophy_stored.trophy_type, 'milestone')
 
-    def test_is_trophy_entry_with_pailindrome(self):
+    def test_is_trophy_entry_with_palindrome(self):
         """Testing entry with palindrome."""
         user1 = User.objects.get(pk=1)
         diff_his1 = DiffSetHistory.objects.get(pk=1)
