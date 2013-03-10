@@ -433,6 +433,9 @@ class EMailSettingsForm(SiteSettingsForm):
     mail_send_review_mail = forms.BooleanField(
         label=_("Send e-mails for review requests and reviews"),
         required=False)
+    mail_send_review_close_mail = forms.BooleanField(
+        label=_("Send e-mails when review requests are closed"),
+        required=False)
     mail_send_new_user_mail = forms.BooleanField(
         label=_("Send e-mails when new users register an account"),
         required=False)
@@ -584,6 +587,14 @@ class DiffSettingsForm(SiteSettingsForm):
 
 
 class LoggingSettingsForm(SiteSettingsForm):
+    LOG_LEVELS = (
+        ('DEBUG', _('Debug')),
+        ('INFO', _('Info')),
+        ('WARNING', _('Warning')),
+        ('ERROR', _('Error')),
+        ('CRITICAL', _('Critical')),
+    )
+
     """Logging settings for Review Board."""
     logging_enabled = forms.BooleanField(
         label=_("Enable logging"),
@@ -598,6 +609,14 @@ class LoggingSettingsForm(SiteSettingsForm):
                     "be writable by the web server."),
         required=False,
         widget=forms.TextInput(attrs={'size': '60'}))
+
+    logging_level = forms.ChoiceField(
+        label=_("Log level"),
+        help_text=_("Indicates the logging threshold. Please note that this "
+                    "may increase the size of the log files if a low "
+                    "threshold is selected."),
+        required=False,
+        choices=LOG_LEVELS)
 
     logging_allow_profiling = forms.BooleanField(
         label=_("Allow code profiling"),
@@ -636,7 +655,8 @@ class LoggingSettingsForm(SiteSettingsForm):
             {
                 'classes': ('wide',),
                 'fields':  ('logging_enabled',
-                            'logging_directory'),
+                            'logging_directory',
+                            'logging_level'),
             },
             {
                 'title':   _('Advanced'),

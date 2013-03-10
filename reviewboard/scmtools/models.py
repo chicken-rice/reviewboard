@@ -22,6 +22,8 @@ class Tool(models.Model):
         lambda x: x.scmtool_class.supports_authentication)
     supports_raw_file_urls = property(
         lambda x: x.scmtool_class.supports_raw_file_urls)
+    supports_ticket_auth = property(
+        lambda x: x.scmtool_class.supports_ticket_auth)
     field_help_text = property(
         lambda x: x.scmtool_class.field_help_text)
 
@@ -198,5 +200,8 @@ class Repository(models.Model):
 
     class Meta:
         verbose_name_plural = "Repositories"
+        # TODO: the path:local_site unique constraint causes problems when
+        # archiving repositories. We should really remove this constraint from
+        # the tables and enforce it in code whenever visible=True
         unique_together = (('name', 'local_site'),
                            ('path', 'local_site'))

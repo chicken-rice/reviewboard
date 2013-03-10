@@ -4,6 +4,7 @@ import os
 import sys
 
 import djblets
+from django.core.urlresolvers import reverse
 from djblets.util.filesystem import is_exe_in_path
 
 
@@ -273,8 +274,8 @@ LOGIN_URL = SITE_ROOT + 'account/login/'
 PIPELINE_JS = {
     '3rdparty': {
         'source_filenames': (
-            'lib/js/underscore-1.3.3.min.js',
-            'lib/js/backbone-0.9.2.min.js',
+            'lib/js/underscore-1.4.4.min.js',
+            'lib/js/backbone-0.9.10.min.js',
             'lib/js/jquery.form.js',
             'lib/js/jquery.timesince.js',
             'lib/js/ui.autocomplete.js',
@@ -285,7 +286,18 @@ PIPELINE_JS = {
         'source_filenames': (
             'lib/js/jasmine-1.3.1.js',
             'lib/js/jasmine-html-1.3.1.js',
+            'rb/js/models/tests/baseCommentModelTests.js',
+            'rb/js/models/tests/baseCommentReplyModelTests.js',
+            'rb/js/models/tests/baseResourceModelTests.js',
+            'rb/js/models/tests/diffCommentModelTests.js',
+            'rb/js/models/tests/diffReviewableModelTests.js',
+            'rb/js/models/tests/fileAttachmentCommentModelTests.js',
+            'rb/js/models/tests/screenshotModelTests.js',
+            'rb/js/models/tests/screenshotCommentModelTests.js',
             'rb/js/models/tests/commentEditorModelTests.js',
+            'rb/js/models/tests/reviewGroupModelTests.js',
+            'rb/js/models/tests/reviewRequestModelTests.js',
+            'rb/js/models/tests/userSessionModelTests.js',
             'rb/js/utils/tests/propertyUtilsTests.js',
             'rb/js/views/tests/commentDialogViewTests.js',
         ),
@@ -296,8 +308,22 @@ PIPELINE_JS = {
             'rb/js/utils/backboneUtils.js',
             'rb/js/utils/consoleUtils.js',
             'rb/js/utils/propertyUtils.js',
+            'rb/js/utils/underscoreUtils.js',
             'rb/js/common.js',
             'rb/js/datastore.js',
+            'rb/js/models/baseResourceModel.js',
+            'rb/js/models/baseCommentModel.js',
+            'rb/js/models/baseCommentReplyModel.js',
+            'rb/js/models/diffCommentModel.js',
+            'rb/js/models/diffCommentReplyModel.js',
+            'rb/js/models/diffModel.js',
+            'rb/js/models/fileAttachmentCommentModel.js',
+            'rb/js/models/fileAttachmentCommentReplyModel.js',
+            'rb/js/models/reviewGroupModel.js',
+            'rb/js/models/screenshotModel.js',
+            'rb/js/models/screenshotCommentModel.js',
+            'rb/js/models/screenshotCommentReplyModel.js',
+            'rb/js/models/userSessionModel.js',
         ),
         'output_filename': 'rb/js/base.min.js',
     },
@@ -308,6 +334,7 @@ PIPELINE_JS = {
             'rb/js/models/abstractReviewableModel.js',
             'rb/js/models/commentEditorModel.js',
             'rb/js/models/commentIssueManagerModel.js',
+            'rb/js/models/diffReviewableModel.js',
             'rb/js/models/fileAttachmentCommentBlockModel.js',
             'rb/js/models/fileAttachmentReviewableModel.js',
             'rb/js/models/regionCommentBlockModel.js',
@@ -317,6 +344,7 @@ PIPELINE_JS = {
             'rb/js/views/abstractCommentBlockView.js',
             'rb/js/views/abstractReviewableView.js',
             'rb/js/views/commentDialogView.js',
+            'rb/js/views/dndUploaderView.js',
             'rb/js/views/fileAttachmentCommentBlockView.js',
             'rb/js/views/fileAttachmentReviewableView.js',
             'rb/js/views/issueSummaryTableView.js',
@@ -365,6 +393,7 @@ PIPELINE_CSS = {
     'reviews': {
         'source_filenames': (
             'rb/css/diffviewer.less',
+            'rb/css/dndUploader.less',
             'rb/css/reviews.less',
             'rb/css/syntax.css',
         ),
@@ -404,3 +433,8 @@ elif DEBUG:
 
 # Packages to unit test
 TEST_PACKAGES = ['reviewboard']
+
+# URL Overrides
+ABSOLUTE_URL_OVERRIDES = {
+    'auth.user': lambda u: reverse('user', kwargs={'username': u.username})
+}

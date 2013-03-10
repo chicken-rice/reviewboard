@@ -1,3 +1,9 @@
+var CommentReplyClasses = {
+    diff_comments: RB.DiffCommentReply,
+    screenshot_comments: RB.ScreenshotCommentReply,
+    file_attachment_comments: RB.FileAttachmentCommentReply
+};
+
 this.gReviewRequest = new RB.ReviewRequest(gReviewRequestId,
                                            gReviewRequestSitePrefix,
                                            gReviewRequestPath);
@@ -19,6 +25,7 @@ var issueSummaryTableManager;
 
 // Attach to global RB object
 RB.draftBanner = gDraftBanner;
+RB.draftBannerButtons = gDraftBannerButtons;
 
 /*
  * "complete" signal handlers for various fields, designed to do
@@ -206,8 +213,7 @@ function setDraftField(field, value) {
 
                 $("#review-request-warning")
                     .show()
-                    .find("td")
-                        .html(message);
+                    .html(message);
             }
 
             var func = gEditorCompleteHandlers[field];
@@ -438,6 +444,8 @@ $.fn.commentSection = function(review_id, context_id, context_type) {
                         gEditCount++;
                     },
                     "complete": function(e, value) {
+                        var replyClass;
+
                         gEditCount--;
 
                         self.html(linkifyText(self.text()));
@@ -446,24 +454,22 @@ $.fn.commentSection = function(review_id, context_id, context_type) {
                             context_type == "body_bottom") {
                             review_reply[context_type] = value;
                             obj = review_reply;
-                        } else if (context_type === "diff_comments") {
-                            obj = new RB.DiffCommentReply(review_reply, null,
-                                                        context_id);
-                            obj.setText(value);
-                        } else if (context_type === "screenshot_comments") {
-                            obj = new RB.ScreenshotCommentReply(review_reply, null,
-                                                                context_id);
-                            obj.setText(value);
-                        } else if (context_type === "file_attachment_comments") {
-                            obj = new RB.FileAttachmentCommentReply(
-                                review_reply, null, context_id);
-                            obj.setText(value);
                         } else {
-                            /* Shouldn't be reached. */
-                            console.log("createCommentEditor received unexpected " +
-                                        "context type '%s'",
-                                        context_type);
-                            return;
+                            replyClass = CommentReplyClasses[context_type];
+
+                            if (!replyClass) {
+                                /* Shouldn't be reached. */
+                                console.log("createCommentEditor received " +
+                                            "unexpected context type '%s'",
+                                            context_type);
+                                return;
+                            }
+
+                            obj = new replyClass({
+                                parentObject: review_reply,
+                                replyToID: context_id,
+                                text: value
+                            });
                         }
 
                         obj.save({
@@ -1026,7 +1032,7 @@ $.fn.reviewFormCommentEditor = function(comment) {
             },
             "complete": function(e, value) {
                 gEditCount--;
-                comment.text = value;
+                comment.set('text', value);
                 comment.save({
                     success: function() {
                         self.trigger("saved");
@@ -1120,24 +1126,23 @@ $.fn.screenshotThumbnail = function() {
                 },
                 "complete": function(e, value) {
                     gEditCount--;
-                    screenshot.ready(function() {
-                        screenshot.caption = value;
-                        screenshot.save({
-                            buttons: gDraftBannerButtons,
-                            success: function(rsp) {
-                                gDraftBanner.show();
-                            }
-                        });
+                    screenshot.set('caption', value);
+                    screenshot.save({
+                        buttons: gDraftBannerButtons,
+                        success: function(rsp) {
+                            gDraftBanner.show();
+                        }
                     });
                 }
             });
 
         captionEl.find("a.delete")
             .click(function() {
-                screenshot.ready(function() {
-                    screenshot.deleteScreenshot()
-                    self.empty();
-                    gDraftBanner.show();
+                screenshot.destroy({
+                    success: function() {
+                        self.empty();
+                        gDraftBanner.show();
+                    }
                 });
 
                 return false;
@@ -1278,10 +1283,10 @@ $.fn.fileAttachment = function() {
                                                               fileID);
 
             if (text) {
-                draftComment.text = text;
+                draftComment.set('text', text);
             }
 
-            $.event.add(draftComment, "saved", function() {
+            draftComment.on('saved', function() {
                 showReviewBanner();
             });
         }
@@ -1347,9 +1352,10 @@ var newFileAttachmentTemplate = _.template([
     '   </a>',
     '  </div>',
     '  <div class="file-thumbnail-container">',
-    '   <% if (review_url) { %><a href="<%= review_url %>"><% } %>',
+    '   <% if (review_url) { %>',
+    '    <a href="<%= review_url %>" class="file-thumbnail-overlay"> </a>',
+    '   <% } %>',
     '   <%= thumbnail %>',
-    '   <% if (review_url) { %></a><% } %>',
     '  </div>',
     '  <div class="file-caption">',
     '   <a href="<%= url %>" class="edit <% if (!caption) { %>empty-caption<% } %>">',
@@ -1559,166 +1565,6 @@ function loadDiffFragments(queue_name, container_prefix) {
 }
 
 
-/*
- * Initializes drag-and-drop support.
- *
- * This makes it possible to drag screenshots and other files from a file
- * manager and drop them into Review Board. This requires browser support
- * for HTML 5 file drag-and-drop.
- */
-function initDnD() {
-    var dropIndicator = null;
-    var fileDropBox;
-    var middleBox;
-    var removeDropIndicatorHandle = null;
-
-    $(document.body)
-        .on("dragenter", function(event) {
-            handleDragEnter(event);
-        });
-
-    function handleDragEnter(event) {
-        if (!dropIndicator) {
-            var height = $(window).height();
-
-            dropIndicator = $("<div/>")
-                .addClass("drop-indicator")
-                .appendTo(document.body)
-                .width($(window).width())
-                .height(height)
-                .on("dragleave", function(event) {
-                    /*
-                     * This should check whether we've exited the drop
-                     * indicator properly. It'll prevent problems when
-                     * transitioning between elements within the indicator.
-                     *
-                     * Note that while this should work cross-browser,
-                     * Firefox 4+ appears broken in that it doesn't send us
-                     * dropleave events on exiting the window.
-                     *
-                     * Also note that it doesn't appear that we need to check
-                     * the Y coordinate. X should be 0 in most cases when
-                     * leaving, except when dragging over the right scrollbar
-                     * in Chrome, when it'll be >= the container width.
-                     */
-                    if (event.pageX <= 0 ||
-                        event.pageX >= dropIndicator.width()) {
-                        handleDragExit();
-                    }
-
-                    return false;
-                })
-                .mouseenter(function() {
-                    /*
-                     * If we get a mouse enter, then the user has moved
-                     * the mouse over the drop indicator without there
-                     * being any drag-and-drop going on. This is likely due
-                     * to the broken Firefox 4+ behavior where dragleave
-                     * events when leaving windows aren't firing.
-                     */
-                    handleDragExit();
-                    return false;
-                });
-
-            fileDropBox = $("<div/>")
-                .addClass("dropbox")
-                .appendTo(dropIndicator)
-                .on('drop', handleDrop)
-            var fileText = $("<h1/>")
-                .text("Drop to Upload")
-                .appendTo(fileDropBox);
-
-            fileDropBox
-                .height(height)
-                .on({
-                    "dragover": function() {
-                        var dt = event.originalEvent.dataTransfer;
-
-                        if (dt) {
-                            dt.dropEffect = "copy";
-                        }
-
-                        $(this).addClass("hover");
-                        return false;
-                    },
-                    "dragleave": function(event) {
-                        var dt = event.originalEvent.dataTransfer;
-
-                        if (dt) {
-                            dt.dropEffect = "none";
-                        }
-
-                        $(this).removeClass("hover");
-                    }
-                });
-
-            fileText.css("margin-top", -fileText.height() / 2);
-        }
-    }
-
-    function handleDragExit(closeImmediately) {
-        if (dropIndicator == null) {
-            return;
-        }
-
-        if (removeDropIndicatorHandle) {
-            window.clearInterval(removeDropIndicatorHandle);
-            removeDropIndicatorHandle = null;
-        }
-
-        if (closeImmediately) {
-            dropIndicator.fadeOut(function() {
-                dropIndicator.remove();
-                dropIndicator = null;
-            });
-        } else {
-            removeDropIndicatorHandle = window.setInterval(function() {
-                handleDragExit(true);
-            }, 1000);
-        }
-    }
-
-    function handleDrop(event) {
-        /* Do these early in case we hit some error. */
-        event.stopPropagation();
-        event.preventDefault();
-
-        var dt = event.originalEvent.dataTransfer;
-
-        var files = dt && dt.files;
-
-        if (!files) {
-            return;
-        }
-
-        for (var i = 0; i < files.length; i++) {
-            uploadFile(files[i]);
-        }
-
-        handleDragExit(true);
-    }
-
-    function uploadFile(file) {
-        /* Create a temporary file listing. */
-        var thumb = $.newFileAttachmentPlaceholder()
-            .css("opacity", 0)
-            .fadeTo(1000, 1);
-
-        var fileAttachment = gReviewRequest.createFileAttachment();
-        fileAttachment.setFile(file);
-        fileAttachment.save({
-            buttons: gDraftBannerButtons,
-            success: function(rsp, fileAttachment) {
-                thumb.replaceWith($.newFileAttachment(fileAttachment));
-                gDraftBanner.show();
-            },
-            error: function(rsp, msg) {
-                thumb.remove();
-            }
-        });
-    }
-}
-
 $(document).ready(function() {
     /* Provide support for expanding submenus in the action list. */
     var menuitem = null;
@@ -1918,6 +1764,8 @@ $(document).ready(function() {
 
     if (gUserAuthenticated) {
         if (window["gEditable"]) {
+            var dndUploader;
+
             $(".editable").reviewRequestFieldEditor();
             $(".screenshot-container").screenshotThumbnail();
             $(".file-container").fileAttachment();
@@ -1994,7 +1842,9 @@ $(document).ready(function() {
                 }
             };
 
-            initDnD();
+            dndUploader = new RB.DnDUploader({
+                reviewRequest: gReviewRequest
+            });
         }
     }
 

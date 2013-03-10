@@ -4,7 +4,7 @@
 #
 #   (Major, Minor, Micro, Patch, alpha/beta/rc/final, Release Number, Released)
 #
-VERSION = (1, 7, 2, 0, 'final', 0, True)
+VERSION = (1, 7, 6, 0, 'final', 0, True)
 
 
 def get_version_string():
@@ -57,6 +57,10 @@ def initialize():
     """
     import logging
     import os
+    import sys
+
+    # Set PYTHONPATH to match sys.patch, for subprocesses.
+    os.environ['PYTHONPATH'] = ':'.join(sys.path)
 
     from django.conf import settings
     from django.db import DatabaseError

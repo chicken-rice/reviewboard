@@ -32,6 +32,9 @@ $(document).ready(function() {
     var jasmineEnv = jasmine.getEnv(),
         htmlReporter = new jasmine.HtmlReporter();
 
+    RB.ajaxOptions.enableQueuing = false;
+    RB.ajaxOptions.enableIndicator = false;
+
     jasmineEnv.specFilter = function(spec) {
         return htmlReporter.specFilter(spec);
     };
@@ -53,6 +56,12 @@ $(document).ready(function() {
                 throw Error(msg);
             }
         });
+
+        /*
+         * Reset the user session, since tests should explicitly create it
+         * if it's needed.
+         */
+        RB.UserSession.instance = null;
     });
 
     afterEach(function() {

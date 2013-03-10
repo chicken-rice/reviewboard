@@ -11,7 +11,7 @@ var ANCHOR_CHUNK = 4;
 
 
 // State
-var gDiff,
+var gDiffReviewable,
     gCollapseButtons = [];
 
 
@@ -159,8 +159,10 @@ function DiffCommentBlock(beginRow, endRow, beginLineNum, endLineNum,
         for (var i in comments) {
             var comment = comments[i];
 
-            // We load in encoded text, so decode it.
-            comment.text = $("<div/>").html(comment.text).text();
+            if (comment.text) {
+                // We load in encoded text, so decode it.
+                comment.text = $("<div/>").html(comment.text).text();
+            }
 
             if (comment.localdraft) {
                 this._createDraftComment(comment.comment_id, comment.text);
@@ -223,7 +225,7 @@ $.extend(DiffCommentBlock.prototype, {
 
         if (this.draftComment) {
             $("<li/>")
-                .text(this.draftComment.text.truncate())
+                .text(this.draftComment.get('text').truncate())
                 .addClass("draft")
                 .appendTo(list);
         }
@@ -289,44 +291,38 @@ $.extend(DiffCommentBlock.prototype, {
             return;
         }
 
-        var self = this;
         var el = this.el;
         var comment = gReviewRequest.createReview().createDiffComment(
             id, this.filediff, this.interfilediff, this.beginLineNum,
             this.endLineNum);
 
         if (text) {
-            comment.text = text;
+            comment.set('text', text);
         }
 
-        $.event.add(comment, "textChanged", function() {
-            self.updateTooltip();
-        });
+        comment.on('change:text', this.updateTooltip, this);
+        comment.on('destroy', function() {
+            this.notify("Comment Deleted");
 
-        $.event.add(comment, "deleted", function() {
-            self.notify("Comment Deleted");
-        });
-
-        $.event.add(comment, "destroyed", function() {
-            self.draftComment = null;
+            this.draftComment = null;
 
             /* Discard the comment block if empty. */
-            if (self.comments.length == 0) {
+            if (this.comments.length == 0) {
                 el.fadeOut(350, function() { el.remove(); })
-                self.anchor.remove();
+                this.anchor.remove();
             } else {
                 el.removeClass("draft");
-                self.updateCount();
-                self.updateTooltip();
+                this.updateCount();
+                this.updateTooltip();
             }
-        });
+        }, this);
 
-        $.event.add(comment, "saved", function() {
-            self.updateCount();
-            self.updateTooltip();
-            self.notify("Comment Saved");
+        comment.on('saved', function() {
+            this.updateCount();
+            this.updateTooltip();
+            this.notify("Comment Saved");
             showReviewBanner();
-        });
+        }, this);
 
         this.draftComment = comment;
         el.addClass("draft");
@@ -1056,84 +1052,93 @@ function addCommentFlags(table, lines, key) {
 RB.expandChunk = function(review_base_url, fileid, filediff_id, revision,
                           interdiff_revision, file_index, chunk_index,
                           lines_of_context, link) {
-    gDiff.getDiffFragment(review_base_url, fileid, filediff_id, revision,
-                          interdiff_revision, file_index, chunk_index,
-                          lines_of_context,
-                          function(html) {
-        var tbody = $(link).parents('tbody'),
-            table = tbody.parent(),
-            key = 'file' + filediff_id,
-            $scrollAnchor,
-            tbodyID,
-            scrollAnchorSel,
-            scrollOffsetTop;
+    gDiffReviewable.getRenderedDiffFragment({
+        reviewRequestURL: review_base_url,
+        fileDiffID: filediff_id,
+        revision: revision,
+        interdiffRevision: interdiff_revision,
+        fileIndex: file_index,
+        chunkIndex: chunk_index,
+        linesOfContext: lines_of_context,
+    }, {
+        success: function(html) {
+            var tbody = $(link).parents('tbody'),
+                table = tbody.parent(),
+                key = 'file' + filediff_id,
+                $scrollAnchor,
+                tbodyID,
+                scrollAnchorSel,
+                scrollOffsetTop;
 
-        /*
-         * We want to position the new chunk or collapse button at roughly
-         * the same position as the chunk or collapse button that the user
-         * pressed. Figure out what it is exactly and what the scroll
-         * offsets are so we can later reposition the scroll offset.
-         */
-        if ($(link).hasClass('diff-collapse-btn')) {
-            $scrollAnchor = $(link);
-        } else {
-            $scrollAnchor = tbody;
-
-            if (lines_of_context === 0) {
-                /*
-                 * We've expanded the entire chunk, so we'll be looking for
-                 * the collapse button.
-                 */
-                tbodyID = /collapsed-(.*)/.exec($scrollAnchor[0].id)[1];
-                tbodySel = 'img.diff-collapse-btn';
+            /*
+             * We want to position the new chunk or collapse button at
+             * roughly the same position as the chunk or collapse button
+             * that the user pressed. Figure out what it is exactly and what
+             * the scroll offsets are so we can later reposition the scroll
+             * offset.
+             */
+            if ($(link).hasClass('diff-collapse-btn')) {
+                $scrollAnchor = $(link);
             } else {
-                tbodyID = $scrollAnchor[0].id;
-            }
-        }
+                $scrollAnchor = tbody;
 
-        scrollOffsetTop = $scrollAnchor.offset().top - $(window).scrollTop();
-
-        /*
-         * If we already expanded, we may have one or two loaded chunks
-         * adjacent to the header. We want to remove those, since we'll be
-         * generating new ones that include that data.
-         */
-        tbody.prev('.diff-header').remove();
-        tbody.next('.diff-header').remove();
-        tbody.prev('.loaded').remove();
-        tbody.next('.loaded').remove();
-
-        /*
-         * Replace the header with the new HTML. This may also include a
-         * new header.
-         */
-        tbody.replaceWith(html);
-        addCommentFlags(table, gHiddenComments[key], key);
-
-        /* Get the new tbody for the header, if any, and try to center. */
-        if (tbodyID) {
-            var el = document.getElementById(tbodyID);
-
-            if (el) {
-                $scrollAnchor = $(el);
-
-                if (scrollAnchorSel) {
-                    $scrollAnchor = $scrollAnchor.find(scrollAnchorSel);
-                }
-
-                if ($scrollAnchor.length > 0) {
-                    $(window).scrollTop($scrollAnchor.offset().top -
-                                        scrollOffsetTop);
+                if (lines_of_context === 0) {
+                    /*
+                     * We've expanded the entire chunk, so we'll be looking
+                     * for the collapse button.
+                     */
+                    tbodyID = /collapsed-(.*)/.exec($scrollAnchor[0].id)[1];
+                    tbodySel = 'img.diff-collapse-btn';
+                } else {
+                    tbodyID = $scrollAnchor[0].id;
                 }
             }
+
+            scrollOffsetTop = $scrollAnchor.offset().top -
+                              $(window).scrollTop();
+
+            /*
+             * If we already expanded, we may have one or two loaded chunks
+             * adjacent to the header. We want to remove those, since we'll
+             * be generating new ones that include that data.
+             */
+            tbody.prev('.diff-header').remove();
+            tbody.next('.diff-header').remove();
+            tbody.prev('.loaded').remove();
+            tbody.next('.loaded').remove();
+
+            /*
+             * Replace the header with the new HTML. This may also include a
+             * new header.
+             */
+            tbody.replaceWith(html);
+            addCommentFlags(table, gHiddenComments[key], key);
+
+            /* Get the new tbody for the header, if any, and try to center. */
+            if (tbodyID) {
+                var el = document.getElementById(tbodyID);
+
+                if (el) {
+                    $scrollAnchor = $(el);
+
+                    if (scrollAnchorSel) {
+                        $scrollAnchor = $scrollAnchor.find(scrollAnchorSel);
+                    }
+
+                    if ($scrollAnchor.length > 0) {
+                        $(window).scrollTop($scrollAnchor.offset().top -
+                                            scrollOffsetTop);
+                    }
+                }
+            }
+
+            /* Recompute the list of buttons for later use. */
+            gCollapseButtons = $('table.sidebyside .diff-collapse-btn');
+            updateCollapseButtonPos();
+
+            /* The selection rectangle may not update -- bug #1353. */
+            $(gAnchors[gSelectedAnchor]).highlightChunk();
         }
-
-        /* Recompute the list of buttons for later use. */
-        gCollapseButtons = $('table.sidebyside .diff-collapse-btn');
-        updateCollapseButtonPos();
-
-        /* The selection rectangle may not update -- bug #1353. */
-        $(gAnchors[gSelectedAnchor]).highlightChunk();
     });
 }
 
@@ -1337,9 +1342,15 @@ RB.loadFileDiff = function(review_base_url, filediff_id, filediff_revision,
         setupFileDiff();
     } else {
         $.funcQueue("diff_files").add(function() {
-            gDiff.getDiffFile(review_base_url, filediff_id, filediff_revision,
-                              interfilediff_id, interfilediff_revision,
-                              file_index, onFileLoaded);
+            gDiffReviewable.getRenderedDiff({
+                reviewRequestURL: review_base_url,
+                fileDiffID: filediff_id,
+                revision: filediff_revision,
+                interdiffRevision: interfilediff_revision,
+                fileIndex: file_index,
+            }, {
+                complete: onFileLoaded
+            });
         });
     }
 
@@ -1403,7 +1414,7 @@ function toggleWhitespaceChunks()
     /* Dim the anchor to each chunk in the file list */
     chunks.each(function() {
         var target = this.id.split("chunk")[1];
-        $("ol.index a[href=#" + target + "]").toggleClass("dimmed");
+        $("ol.index a[href='#" + target + "']").toggleClass("dimmed");
     });
 
     /* Remove chunk identifiers */
@@ -1492,7 +1503,10 @@ $(document).ready(function() {
         return;
     }
 
-    gDiff = gReviewRequest.createDiff(gRevision, gInterdiffRevision);
+    gDiffReviewable = new RB.DiffReviewable({
+        revision: gRevision,
+        interdiffRevision: gInterdiffRevision
+    });
 
     $(document).keypress(function(evt) {
         if (evt.altKey || evt.ctrlKey || evt.metaKey) {

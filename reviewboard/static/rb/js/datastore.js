@@ -1,423 +1,3 @@
-RB.DiffComment = function(review, id, filediff, interfilediff, beginLineNum,
-                          endLineNum) {
-    this.id = id;
-    this.review = review;
-    this.filediff = filediff;
-    this.interfilediff = interfilediff;
-    this.beginLineNum = beginLineNum;
-    this.endLineNum = endLineNum;
-    this.text = "";
-    this.issue_opened = true;
-    this.issue_status = "";
-    this.loaded = false;
-    this.url = null;
-
-    return this;
-};
-
-$.extend(RB.DiffComment.prototype, {
-    ready: function(on_ready, context) {
-        if (this.loaded) {
-            on_ready.call(context);
-        } else {
-            this._load(on_ready, context);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-    /*
-     * Returns the number of lines that this comment covers.
-     *
-     * @return {int} The number of lines this comment covers.
-     */
-    getNumLines: function() {
-        return this.endLineNum - this.beginLineNum + 1;
-    },
-
-    /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-        options = options || {};
-
-        self.ready(function() {
-            self.review.ensureCreated(function() {
-                var type = "POST";
-                var url;
-                var data = {
-                    text: self.text,
-                    issue_opened: self.issue_opened,
-                    first_line: self.beginLineNum,
-                    num_lines: self.getNumLines()
-                };
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-                    if (self.review.public) {
-                        data.issue_status = self.issue_status;
-                    }
-                } else {
-                    data.filediff_id = self.filediff.id;
-                    url = self.review.links.diff_comments.href;
-
-                    if (self.interfilediff) {
-                        data.interfilediff_id = self.interfilediff.id;
-                    }
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-
-                        $.event.trigger("saved", null, self);
-
-                        if ($.isFunction(options.success)) {
-                            options.success(rsp);
-                        }
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text == "") {
-            this.deleteComment();
-        }
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done, context) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.call(context);
-            return;
-        }
-
-        self.review.ready(function() {
-            if (!self.review.loaded) {
-                on_done.call(context);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.review.links.diff_comments.href + self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.call(context);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.diff_comment.id;
-        this.text = rsp.diff_comment.text;
-        this.beginLineNum = rsp.diff_comment.first_line;
-        this.endLineNum = rsp.diff_comment.num_lines + this.beginLineNum - 1;
-        this.links = rsp.diff_comment.links;
-        this.url = rsp.diff_comment.links.self.href;
-        this.loaded = true;
-        this.issue_opened = rsp.diff_comment.issue_opened;
-        this.issue_status = rsp.diff_comment.issue_status;
-    }
-});
-
-
-RB.DiffCommentReply = function(reply, id, reply_to_id) {
-    this.id = id;
-    this.reply = reply;
-    this.text = "";
-    this.reply_to_id = reply_to_id;
-    this.loaded = false;
-    this.url = null;
-
-    return this;
-};
-
-$.extend(RB.DiffCommentReply.prototype, {
-    ready: function(on_ready) {
-        if (this.loaded) {
-            on_ready.apply(this, arguments);
-        } else {
-            this._load(on_ready);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-    /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-        options = options || {};
-
-        self.ready(function() {
-            self.reply.ensureCreated(function() {
-                var type;
-                var url;
-                var data = {
-                    text: self.text
-                };
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-                } else {
-                    data.reply_to_id = self.reply_to_id;
-                    url = self.reply.links.diff_comments.href;
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-
-                        $.event.trigger("saved", null, self);
-
-                        if ($.isFunction(options.success)) {
-                            options.success();
-                        }
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text != "") {
-            return;
-        }
-
-        this.deleteComment();
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.apply(this, arguments);
-            return;
-        }
-
-        self.reply.ready(function() {
-            if (!self.reply.loaded) {
-                on_done.apply(this, arguments);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.reply.links.diff_comments.href + self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.apply(this, arguments);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.diff_comment.id;
-        this.text = rsp.diff_comment.text;
-        this.links = rsp.diff_comment.links;
-        this.url = rsp.diff_comment.links.self.href;
-        this.loaded = true;
-    }
-});
-
-
-RB.Diff = function(review_request, revision, interdiff_revision) {
-    this.review_request = review_request;
-    this.revision = revision;
-    this.interdiff_revision = interdiff_revision;
-
-    return this;
-};
-
-$.extend(RB.Diff.prototype, {
-    getDiffFragment: function(review_base_url, fileid, filediff_id, revision,
-                              interdiff_revision, file_index, chunk_index,
-                              lines_of_context, onSuccess) {
-        var revisionStr = revision,
-            data = {
-                index: file_index
-            };
-
-        if (interdiff_revision !== null) {
-            revisionStr += "-" + interdiff_revision;
-        }
-
-        if (lines_of_context !== null) {
-            data['lines-of-context'] = lines_of_context;
-        }
-
-        RB.apiCall({
-            url: review_base_url + 'diff/' + revisionStr + '/fragment/' +
-                 filediff_id + '/chunk/' + chunk_index + '/',
-            data: data,
-            type: "GET",
-            dataType: "html",
-            complete: function(res, status) {
-                if (status == "success") {
-                    onSuccess(res.responseText);
-                }
-            }
-        });
-    },
-
-    getDiffFile: function(review_base_url, filediff_id, filediff_revision,
-                          interfilediff_id, interfilediff_revision,
-                          file_index, onSuccess) {
-        var revision_str = filediff_revision;
-
-        if (interfilediff_id) {
-            revision_str += "-" + interfilediff_revision;
-        }
-
-        $.ajax({
-            type: "GET",
-            url: review_base_url + "diff/" + revision_str + "/fragment/" +
-                 filediff_id + "/?index=" + file_index + "&" + AJAX_SERIAL,
-            complete: onSuccess
-        });
-    },
-
-    getErrorString: function(rsp) {
-        if (rsp.err.code == 207) {
-            return 'The file "' + rsp.file + '" (revision ' + rsp.revision +
-                    ') was not found in the repository';
-        }
-
-        return rsp.err.msg;
-    },
-
-    setForm: function(form) {
-        this.form = form;
-    },
-
-    save: function(options) {
-        var self = this;
-
-        options = $.extend(true, {
-            success: function() {},
-            error: function() {}
-        }, options);
-
-        if (self.id != undefined) {
-            options.error("The diff " + self.id + " was already created. " +
-                          "This is a script error. Please report it.");
-            return;
-        }
-
-        if (!self.form) {
-            options.error("No data has been set for this diff. This " +
-                          "is a script error. Please report it.");
-            return;
-        }
-
-        self.review_request.ready(function() {
-            RB.apiCall({
-                url: self.review_request.links.diffs.href,
-                form: self.form,
-                buttons: options.buttons,
-                success: function(rsp) {
-                    if (rsp.stat == "ok") {
-                        options.success(rsp);
-                    } else {
-                        options.error(rsp, rsp.err.msg);
-                    }
-                }
-            });
-        });
-    }
-});
-
-
 RB.ReviewRequest = function(id, prefix, path) {
     this.id = id;
     this.prefix = prefix;
@@ -440,7 +20,9 @@ $.extend(RB.ReviewRequest, {
 $.extend(RB.ReviewRequest.prototype, {
     /* Review request API */
     createDiff: function(revision, interdiff_revision) {
-        return new RB.Diff(this, revision, interdiff_revision);
+        return new RB.Diff({
+            parentObject: this
+        });
     },
 
     createReview: function(review_id) {
@@ -458,7 +40,10 @@ $.extend(RB.ReviewRequest.prototype, {
     },
 
     createScreenshot: function(screenshot_id) {
-        return new RB.Screenshot(this, screenshot_id);
+        return new RB.Screenshot({
+            parentObject: this,
+            id: screenshot_id
+        });
     },
 
     createFileAttachment: function(file_attachment_id) {
@@ -489,6 +74,11 @@ $.extend(RB.ReviewRequest.prototype, {
         }
     },
 
+    // XXX Needed until we move this to Backbone.js.
+    ensureCreated: function(cb) {
+        this.ready(cb);
+    },
+
     setDraftField: function(options) {
         data = {};
         data[options.field] = options.value;
@@ -507,25 +97,17 @@ $.extend(RB.ReviewRequest.prototype, {
         });
     },
 
-    setStarred: function(starred) {
-        var apiType;
-        var path = "/users/" + gUserName + "/watched/review-requests/";
-        var data = {};
+    /*
+     * Marks a review request as starred or unstarred.
+     */
+    setStarred: function(starred, options, context) {
+        var watched = RB.UserSession.instance.watchedReviewRequests;
 
         if (starred) {
-            apiType = "POST";
-            data.object_id = this.id;
+            watched.addImmediately(this, options, context);
         } else {
-            apiType = "DELETE";
-            path += this.id + "/";
+            watched.removeImmediately(this, options, context);
         }
-
-        RB.apiCall({
-            type: apiType,
-            path: path,
-            data: data,
-            success: function() {}
-        });
     },
 
     publish: function(options) {
@@ -683,17 +265,34 @@ RB.Review = function(review_request, id) {
 $.extend(RB.Review.prototype, {
     createDiffComment: function(id, filediff, interfilediff, beginLineNum,
                                 endLineNum) {
-        return new RB.DiffComment(this, id, filediff, interfilediff,
-                                  beginLineNum, endLineNum);
+        return new RB.DiffComment({
+            parentObject: this,
+            id: id,
+            fileDiffID: filediff ? filediff.id : null,
+            interFileDiffID: interfilediff ? interfilediff.id : null,
+            beginLineNum: beginLineNum,
+            endLineNum: endLineNum
+        });
     },
 
     createScreenshotComment: function(id, screenshot_id, x, y, width, height) {
-        return new RB.ScreenshotComment(this, id, screenshot_id, x, y,
-                                        width, height);
+        return new RB.ScreenshotComment({
+            parentObject: this,
+            id: id,
+            screenshotID: screenshot_id,
+            x: x,
+            y: y,
+            width: width,
+            height: height
+        });
     },
 
     createFileAttachmentComment: function(id, file_attachment_id) {
-        return new RB.FileAttachmentComment(this, id, file_attachment_id);
+        return new RB.FileAttachmentComment({
+            parentObject: this,
+            id: id,
+            fileAttachmentID: file_attachment_id
+        });
     },
 
     createReply: function() {
@@ -848,36 +447,6 @@ $.extend(RB.Review.prototype, {
             }
 
             RB.apiCall(options);
-        });
-    }
-});
-
-
-RB.ReviewGroup = function(id) {
-    this.id = id;
-
-    return this;
-};
-
-$.extend(RB.ReviewGroup.prototype, {
-    setStarred: function(starred) {
-        var apiType;
-        var path = "/users/" + gUserName + "/watched/review-groups/";
-        var data = {};
-
-        if (starred) {
-            apiType = "POST";
-            data.object_id = this.id;
-        } else {
-            apiType = "DELETE";
-            path += this.id + "/";
-        }
-
-        RB.apiCall({
-            type: apiType,
-            path: path,
-            data: data,
-            success: function() {}
         });
     }
 });
@@ -1206,783 +775,6 @@ $.extend(RB.FileAttachment.prototype, {
 });
 
 
-RB.FileAttachmentCommentReply = function(reply, id, reply_to_id) {
-    this.id = id;
-    this.reply = reply;
-    this.text = "";
-    this.reply_to_id = reply_to_id;
-    this.loaded = false;
-    this.url = null;
-
-    return this;
-};
-
-$.extend(RB.FileAttachmentCommentReply.prototype, {
-    ready: function(on_ready) {
-        if (this.loaded) {
-            on_ready.apply(this, arguments);
-        } else {
-            this._load(on_ready);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-    /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-        options = options || {};
-
-        self.ready(function() {
-            self.reply.ensureCreated(function() {
-                var type;
-                var url;
-                var data = {
-                    text: self.text
-                };
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-                } else {
-                    data.reply_to_id = self.reply_to_id;
-                    url = self.reply.links.file_attachment_comments.href;
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-
-                        $.event.trigger("saved", null, self);
-
-                        if ($.isFunction(options.success)) {
-                            options.success();
-                        }
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text == "") {
-            this.deleteComment();
-        }
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.apply(this, arguments);
-            return;
-        }
-
-        self.reply.ready(function() {
-            if (!self.reply.loaded) {
-                on_done.apply(this, arguments);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.reply.links.file_attachment_comments.href + self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.apply(this, arguments);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.file_attachment_comment.id;
-        this.text = rsp.file_attachment_comment.text;
-        this.links = rsp.file_attachment_comment.links;
-        this.url = rsp.file_attachment_comment.links.self.href;
-        this.loaded = true;
-    }
-});
-
-
-RB.Screenshot = function(review_request, id) {
-    this.review_request = review_request;
-    this.id = id;
-    this.caption = null;
-    this.thumbnail_url = null;
-    this.path = null;
-    this.url = null;
-    this.loaded = false;
-
-    return this;
-};
-
-$.extend(RB.Screenshot.prototype, {
-    setFile: function(file) {
-        this.file = file;
-    },
-
-    setForm: function(form) {
-        this.form = form;
-    },
-
-    ready: function(on_done) {
-        if (this.loaded && this.id) {
-            on_done.apply(this, arguments);
-        } else {
-            this._load(on_done);
-        }
-    },
-
-    save: function(options) {
-        options = $.extend(true, {
-            success: function() {},
-            error: function() {}
-        }, options);
-
-        if (this.id) {
-            var data = {};
-
-            if (this.caption != null) {
-                data.caption = this.caption;
-            }
-
-            var self = this;
-
-            this.ready(function() {
-                RB.apiCall({
-                    type: "PUT",
-                    url: self.url,
-                    data: data,
-                    buttons: options.buttons,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-
-                        if ($.isFunction(options.success)) {
-                            options.success(rsp);
-                        }
-                    }
-                });
-            });
-        } else {
-            if (this.form) {
-                this._saveForm(options);
-            } else if (this.file) {
-                this._saveFile(options);
-            } else {
-                options.error("No data has been set for this screenshot. " +
-                              "This is a script error. Please report it.");
-            }
-        }
-    },
-
-    deleteScreenshot: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            }
-        });
-    },
-
-    _load: function(on_done) {
-        if (!this.id) {
-            on_done.apply(this, arguments);
-            return;
-        }
-
-        var self = this;
-
-        self.review_request.ready(function() {
-            RB.apiCall({
-                type: "GET",
-                url: self.review_request.links.screenshots.href + self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.apply(this, arguments);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.screenshot.id;
-        this.caption = rsp.screenshot.caption;
-        this.thumbnail_url = rsp.screenshot.thumbnail_url;
-        this.path = rsp.screenshot.path;
-        this.url = rsp.screenshot.links.self.href;
-        this.loaded = true;
-    },
-
-    _saveForm: function(options) {
-        this._saveApiCall(options.success, options.error, {
-            buttons: options.buttons,
-            form: this.form
-        });
-    },
-
-    _saveFile: function(options) {
-        sendFileBlob(this.file, this._saveApiCall, this, options);
-    },
-
-    _saveApiCall: function(onSuccess, onError, options) {
-        var self = this;
-
-        self.review_request.ready(function() {
-            RB.apiCall($.extend(options, {
-                url: self.review_request.links.screenshots.href,
-                success: function(rsp) {
-                    if (rsp.stat == "ok") {
-                        self._loadDataFromResponse(rsp);
-
-                        if ($.isFunction(onSuccess)) {
-                            onSuccess(rsp, rsp.screenshot);
-                        }
-                    } else if ($.isFunction(onError)) {
-                        onError(rsp, rsp.err.msg);
-                    }
-                }
-            }));
-        });
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    }
-});
-
-
-RB.ScreenshotComment = function(review, id, screenshot_id, x, y, width,
-                                height) {
-    this.id = id;
-    this.review = review;
-    this.screenshot_id = screenshot_id;
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.text = "";
-    this.issue_opened = true;
-    this.issue_status = "";
-    this.loaded = false;
-    this.url = null;
-
-    return this;
-};
-
-$.extend(RB.ScreenshotComment.prototype, {
-    ready: function(on_ready, context) {
-        if (this.loaded) {
-            on_ready.call(context);
-        } else {
-            this._load(on_ready, context);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-   /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-
-        options = $.extend({
-            success: function() {}
-        }, options);
-
-        self.ready(function() {
-            self.review.ensureCreated(function() {
-                var type;
-                var url;
-                var data = {
-                    text: self.text,
-                    x: self.x,
-                    y: self.y,
-                    w: self.width,
-                    h: self.height,
-                    issue_opened: self.issue_opened
-                };
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-
-                    if (self.review.public) {
-                        data.issue_status = self.issue_status;
-                    }
-                } else {
-                    data.screenshot_id = self.screenshot_id;
-                    url = self.review.links.screenshot_comments.href;
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-                        $.event.trigger("saved", null, self);
-                        options.success(rsp);
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text != "") {
-            return;
-        }
-
-        this.deleteComment();
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done, context) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.call(context);
-            return;
-        }
-
-        self.review.ready(function() {
-            if (!self.review.loaded) {
-                on_done.call(context);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.review.links.screenshot_comments.href +
-                     self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.call(context);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.screenshot_comment.id;
-        this.text = rsp.screenshot_comment.text;
-        this.x = rsp.screenshot_comment.x;
-        this.y = rsp.screenshot_comment.y;
-        this.width = rsp.screenshot_comment.w;
-        this.height = rsp.screenshot_comment.h;
-        this.links = rsp.screenshot_comment.links;
-        this.url = rsp.screenshot_comment.links.self.href;
-        this.loaded = true;
-        this.issue_opened = rsp.screenshot_comment.issue_opened;
-        this.issue_status = rsp.screenshot_comment.issue_status;
-    }
-});
-
-
-RB.FileAttachmentComment = function(review, id, file_attachment_id) {
-    this.id = id;
-    this.review = review;
-    this.file_attachment_id = file_attachment_id;
-    this.text = "";
-    this.loaded = false;
-    this.issue_opened = true;
-    this.issue_status = "";
-    this.url = null;
-    this.extra_data = {};
-
-    return this;
-};
-
-$.extend(RB.FileAttachmentComment.prototype, {
-    ready: function(on_ready, context) {
-        if (this.loaded) {
-            on_ready.call(context);
-        } else {
-            this._load(on_ready, context);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-    setForm: function(form) {
-        this.form = form;
-    },
-
-    _saveForm: function(options) {
-        this._saveApiCall(options.success, options.error, {
-            buttons: options.buttons,
-            form: this.form
-        });
-    },
-
-    /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-
-        options = $.extend({
-            success: function() {}
-        }, options);
-
-        self.ready(function() {
-            self.review.ensureCreated(function() {
-                var type,
-                    url,
-                    data = {
-                        text: self.text,
-                        issue_opened: self.issue_opened
-                    };
-
-                _.each(self.extra_data, function(value, key) {
-                    data['extra_data.' + key] = value;
-                }, this);
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-
-                    if (self.review.public) {
-                        data.issue_status = self.issue_status;
-                    }
-                } else {
-                    data.file_attachment_id = self.file_attachment_id;
-                    url = self.review.links.file_attachment_comments.href;
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-                        $.event.trigger("saved", null, self);
-
-                        if ($.isFunction(options.success)) {
-                            options.success(rsp);
-                        }
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text == "") {
-            this.deleteComment();
-        }
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done, context) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.call(context);
-            return;
-        }
-
-        self.review.ready(function() {
-            if (!self.review.loaded) {
-                on_done.call(context);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.review.links.file_attachment_comments.href +
-                     self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.call(context);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.file_attachment_comment.id;
-        this.text = rsp.file_attachment_comment.text;
-        this.links = rsp.file_attachment_comment.links;
-        this.url = rsp.file_attachment_comment.links.self.href;
-        this.issue_opened = rsp.file_attachment_comment.issue_opened;
-        this.issue_status = rsp.file_attachment_comment.issue_status;
-        this.extra_data = rsp.file_attachment_comment.extra_data;
-        this.loaded = true;
-    }
-});
-
-
-RB.ScreenshotCommentReply = function(reply, id, reply_to_id) {
-    this.id = id;
-    this.reply = reply;
-    this.text = "";
-    this.reply_to_id = reply_to_id;
-    this.loaded = false;
-    this.url = null;
-
-    return this;
-};
-
-$.extend(RB.ScreenshotCommentReply.prototype, {
-    ready: function(on_ready) {
-        if (this.loaded) {
-            on_ready.apply(this, arguments);
-        } else {
-            this._load(on_ready);
-        }
-    },
-
-    /*
-     * Sets the current text in the comment block.
-     *
-     * @param {string} text  The new text to set.
-     */
-    setText: function(text) {
-        this.text = text;
-        $.event.trigger("textChanged", null, this);
-    },
-
-    /*
-     * Saves the comment on the server.
-     */
-    save: function(options) {
-        var self = this;
-        options = options || {};
-
-        self.ready(function() {
-            self.reply.ensureCreated(function() {
-                var type;
-                var url;
-                var data = {
-                    text: self.text
-                };
-
-                if (self.loaded) {
-                    type = "PUT";
-                    url = self.url;
-                } else {
-                    data.reply_to_id = self.reply_to_id;
-                    url = self.reply.links.screenshot_comments.href;
-                }
-
-                RB.apiCall({
-                    type: type,
-                    url: url,
-                    data: data,
-                    success: function(rsp) {
-                        self._loadDataFromResponse(rsp);
-
-                        $.event.trigger("saved", null, self);
-
-                        if ($.isFunction(options.success)) {
-                            options.success();
-                        }
-                    }
-                });
-            });
-        });
-    },
-
-    /*
-     * Deletes the comment from the server.
-     */
-    deleteComment: function() {
-        var self = this;
-
-        self.ready(function() {
-            if (self.loaded) {
-                RB.apiCall({
-                    type: "DELETE",
-                    url: self.url,
-                    success: function() {
-                        $.event.trigger("deleted", null, self);
-                        self._deleteAndDestruct();
-                    }
-                });
-            } else {
-                self._deleteAndDestruct();
-            }
-        });
-    },
-
-    deleteIfEmpty: function() {
-        if (this.text != "") {
-            return;
-        }
-
-        this.deleteComment();
-    },
-
-    _deleteAndDestruct: function() {
-        $.event.trigger("destroyed", null, this);
-    },
-
-    _load: function(on_done) {
-        var self = this;
-
-        if (!self.id) {
-            on_done.apply(this, arguments);
-            return;
-        }
-
-        self.reply.ready(function() {
-            if (!self.reply.loaded) {
-                on_done.apply(this, arguments);
-                return;
-            }
-
-            RB.apiCall({
-                type: "GET",
-                url: self.reply.links.screenshot_comments.href + self.id + "/",
-                success: function(rsp, status) {
-                    if (status != 404) {
-                        self._loadDataFromResponse(rsp);
-                    }
-
-                    on_done.apply(this, arguments);
-                }
-            });
-        });
-    },
-
-    _loadDataFromResponse: function(rsp) {
-        this.id = rsp.screenshot_comment.id;
-        this.text = rsp.screenshot_comment.text;
-        this.links = rsp.screenshot_comment.links;
-        this.url = rsp.screenshot_comment.links.self.href;
-        this.loaded = true;
-    }
-});
-
-
 /*
  * Convenience wrapper for Review Board API functions. This will handle
  * any button disabling/enabling, write to the correct path prefix, form
@@ -2017,7 +809,7 @@ RB.apiCall = function(options) {
 
         var activityIndicator = $("#activity-indicator");
 
-        if (!options.noActivityIndicator) {
+        if (RB.ajaxOptions.enableIndicator && !options.noActivityIndicator) {
             activityIndicator
                 .removeClass("error")
                 .text((options.type || options.type == "GET")
@@ -2078,7 +870,8 @@ RB.apiCall = function(options) {
                 options.buttons.attr("disabled", false);
             }
 
-            if (!options.noActivityIndicator &&
+            if (RB.ajaxOptions.enableIndicator &&
+                !options.noActivityIndicator &&
                 !activityIndicator.hasClass("error")) {
                 activityIndicator
                     .delay(1000)
@@ -2153,13 +946,29 @@ RB.apiCall = function(options) {
 
     options.type = options.type || "POST";
 
-    if (options.type != "GET") {
+    /* We allow disabling the function queue for the sake of unit tests. */
+    if (RB.ajaxOptions.enableQueuing && options.type !== "GET") {
         $.funcQueue("rbapicall").add(doCall);
         $.funcQueue("rbapicall").start();
     } else {
         doCall();
     }
-}
+};
+
+RB.ajaxOptions = {
+    enableQueuing: true,
+    enableIndicator: true
+};
+
+/*
+ * Call RB.apiCall instead of $.ajax.
+ *
+ * We wrap instead of assign for now so that we can hook in/override
+ * RB.apiCall with unit tests.
+ */
+Backbone.ajax = function(options) {
+    return RB.apiCall(options);
+};
 
 
 function sendFileBlob(file, save_func, obj, options) {
