@@ -886,7 +886,7 @@ class ReviewRequest(BaseReviewRequestDetails):
         Save the current draft attached to this review request. Send out the
         associated email. Returns the review request that was saved.
         """
-        from reviewboard.accounts.models import LocalSiteProfile
+        from reviewboard.accounts.models import LocalSiteProfile, Trophy
 
         if not self.is_mutable_by(user):
             raise PermissionError
@@ -931,11 +931,11 @@ class ReviewRequest(BaseReviewRequestDetails):
         self.public = True
         self.save(update_counts=True)
 
+        Trophy.objects.compute_trophies(self, user)
+
         review_request_published.send(sender=self.__class__, user=user,
                                       review_request=self,
                                       changedesc=changes)
-
-        Trophy.objects.compute_trophies(self, user)
 
     def _update_counts(self):
         from reviewboard.accounts.models import Profile, LocalSiteProfile

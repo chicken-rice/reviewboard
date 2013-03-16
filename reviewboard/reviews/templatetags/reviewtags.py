@@ -33,45 +33,20 @@ def iftrophy(context, nodelist, rid):
     and two variables, ``milestone`` and ``palindrome`` are defined.
     """
     context.push()
-    context['milestone'] = False
-    context['palindrome'] = False
 
-    trophy = Trophy.objects.filter(review_request=rid)
+    trophies = Trophy.objects.filter(review_request=rid)
 
-    if len(trophy) == 0:
+    if len(trophies) == 0:
         context.pop()
         return ""
 
-    context[trophy[0].trophy_type] = True
+    trophy_list = []
+    for trophy in trophies:
+        trophy_list.append(Trophy.objects.trophy_dict[
+                           trophy.trophy_type])
 
-    s = nodelist.render(context)
-    context.pop()
-    return s
+    context['trophy_list'] = trophy_list
 
-
-@register.tag
-@blocktag
-def iftrophy(context, nodelist, rid):
-    """
-    Returns whether or not the specified number is a "neat" number.
-    This is a number with a special property, such as being a
-    palindrome or having trailing zeroes.
-
-    If the number is a neat number, the contained content is rendered,
-    and two variables, ``milestone`` and ``palindrome`` are defined.
-    """
-    context.push()
-    context['milestone'] = False
-    context['palindrome'] = False
-
-    trophy = Trophy.objects.filter(review_request=
-                                   ReviewRequest.objects.get(id=rid))
-
-    if len(trophy) == 0:
-        context.pop()
-        return ""
-
-    context[trophy[0].trophy_type] = True
 
     s = nodelist.render(context)
     context.pop()

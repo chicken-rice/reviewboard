@@ -1,5 +1,4 @@
 from datetime import timedelta
-
 import logging
 import os
 
@@ -1170,8 +1169,9 @@ class IfTrophyTagTests(TestCase):
         t = Template(
             "{% load reviewtags %}"
             "{% iftrophy " + str(rid) + " %}"
-            "{%  if milestone %}milestone{% else %}"
-            "{%  if palindrome %}palindrome{% endif %}{% endif %}"
+            "{%  for trophy in trophy_list %}"
+            "{{   trophy.title }}"
+            "{%  endfor %}"
             "{% endiftrophy %}")
 
         self.assertEqual(t.render(Context({})), expected)

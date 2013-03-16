@@ -13,15 +13,16 @@ class AbstractTrophy(object):
 
     def isQualified(self, user, review_request):
         #Does the user qualify for the Trophy?
-        #ToDo implement at inherited class
+        #Implement at inherited class
         return False
+
 
 class MilestoneTrophy(AbstractTrophy):
     def __init__(self):
         AbstractTrophy.__init__(self,
                                 'rb/images/trophy.png',
                                 'milestone',
-                                 'milestone trophy')
+                                'milestone trophy')
 
     def isQualified(self, review_request, user):
         rid = review_request.id
@@ -38,7 +39,7 @@ class PalindromeTrophy(AbstractTrophy):
         AbstractTrophy.__init__(self,
                                 'rb/images/fish-trophy.png',
                                 'palindrome',
-                                 'palindrome trophy')
+                                'palindrome trophy')
 
     def isQualified(self, review_request, user):
         rid = review_request.id
@@ -56,7 +57,6 @@ class TrophyManager(Manager):
     trophy_dict = {}
     for ab_trophy in trophy_kind:
         trophy_dict[ab_trophy.title] = ab_trophy
-
 
     def getAbstractTrophy(self, tid):
         trophy = self.objects.get(pk=tid)

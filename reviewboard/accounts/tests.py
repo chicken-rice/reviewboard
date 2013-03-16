@@ -1,5 +1,3 @@
-import copy
-
 from django.contrib.auth.models import User
 from djblets.testing.decorators import add_fixtures
 from djblets.testing.testcases import TestCase
@@ -7,6 +5,7 @@ from djblets.testing.testcases import TestCase
 from reviewboard.diffviewer.models import DiffSetHistory
 from reviewboard.accounts.models import LocalSiteProfile, Trophy
 from reviewboard.reviews.models import ReviewRequest
+
 
 class ProfileTests(TestCase):
     """Testing the Profile model."""
