@@ -13,7 +13,7 @@ class AbstractTrophy(object):
 
     def isQualified(self, user, review_request):
         #Does the user qualify for the Trophy?
-        #ToDo implement at inherited class
+        #Implement at inherited class
         return False
 
 class MilestoneTrophy(AbstractTrophy):

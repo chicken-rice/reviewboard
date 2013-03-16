@@ -5,10 +5,14 @@
 {% load staticfiles %}
 
 {% iftrophy review_request.display_id %}
-{%  box "yay" %}
-{%   definevar "trophyimg" %}rb/images/{% if milestone %}trophy{% else %}fish-trophy{% endif %}.png{% enddefinevar %}
+{%  for trophy in trophy_list %}
+{%   box "yay" %}
+{%    definevar "trophyimg" %}
+{{     trophy.icon_url }}
+{%    enddefinevar %}
  <img src="{% static trophyimg %}" width="32" height="48" border="0" alt="" />
  <h1>{% blocktrans with review_request.submitter|user_displayname as submitter and review_request.id as id %}{{submitter}} got review request #{{id}}!{% endblocktrans %}</h1>
-{%  endbox %}
+{%   endbox %}
+{%  endfor %}
 {% endiftrophy %}
 

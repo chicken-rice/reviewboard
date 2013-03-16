@@ -1,5 +1,3 @@
-import copy
-
 from django.contrib.auth.models import User
 from djblets.testing.decorators import add_fixtures
 from djblets.testing.testcases import TestCase
