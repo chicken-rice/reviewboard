@@ -177,7 +177,7 @@ class Trophy(models.Model):
     local_site = models.ForeignKey(LocalSite, null=True, blank=True,
                                    related_name='trophies')
 
-    #Set this up with a TrophyManager to compute trophies
+    # Set this up with a TrophyManager to compute trophies
 
     objects = TrophyManager()
 

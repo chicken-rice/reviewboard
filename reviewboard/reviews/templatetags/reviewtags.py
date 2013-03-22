@@ -25,12 +25,11 @@ register = template.Library()
 @blocktag
 def iftrophy(context, nodelist, rid):
     """
-    Returns whether or not the specified number is a "neat" number.
-    This is a number with a special property, such as being a
-    palindrome or having trailing zeroes.
+    Returns whether or not the review_request has trophies.
+    These trophies are defined at TrophyManager.
 
-    If the number is a neat number, the contained content is rendered,
-    and two variables, ``milestone`` and ``palindrome`` are defined.
+    If the review_request has trophies, the contained contents are
+    rendered.
     """
     context.push()
 
@@ -42,8 +41,7 @@ def iftrophy(context, nodelist, rid):
 
     trophy_list = []
     for trophy in trophies:
-        trophy_list.append(Trophy.objects.trophy_dict[
-                           trophy.trophy_type])
+        trophy_list.append(Trophy.objects.get_trophy(trophy))
 
     context['trophy_list'] = trophy_list
 

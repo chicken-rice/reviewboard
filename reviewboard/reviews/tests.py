@@ -14,6 +14,7 @@ from djblets.siteconfig.models import SiteConfiguration
 from reviewboard.accounts.models import Profile, LocalSiteProfile, \
                                         Trophy
 from reviewboard.attachments.models import FileAttachment
+from reviewboard.diffviewer.models import DiffSetHistory
 from reviewboard.reviews.forms import DefaultReviewerForm, GroupForm
 from reviewboard.reviews.models import Comment, \
                                        DefaultReviewer, \
@@ -25,7 +26,6 @@ from reviewboard.reviews.models import Comment, \
 from reviewboard.scmtools.models import Repository, Tool
 from reviewboard.site.models import LocalSite
 from reviewboard.site.urlresolvers import local_site_reverse
-from reviewboard.diffviewer.models import DiffSetHistory
 
 
 class DbQueryTests(TestCase):
@@ -1170,7 +1170,7 @@ class IfTrophyTagTests(TestCase):
             "{% load reviewtags %}"
             "{% iftrophy " + str(rid) + " %}"
             "{%  for trophy in trophy_list %}"
-            "{{   trophy.title }}"
+            "{{   trophy.id }}"
             "{%  endfor %}"
             "{% endiftrophy %}")
 
